@@ -19,16 +19,7 @@ A Python script to scan a list of IP addresses, domains, or file hashes against 
 
 ## Requirements
 
-- Python 3.6+
-- `requests` (for making API requests)
-- `tqdm` (for showing a progress bar)
-- `concurrent.futures` (for parallel processing)
-
-To install the required libraries, run:
-
-```bash
-pip install -r requirements.txt
-```
+- Python 3.10+
 
 ---
 
