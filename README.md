@@ -30,13 +30,6 @@ To install the required libraries, run:
 pip install -r requirements.txt
 ```
 
-Create a `requirements.txt` file with the following dependencies:
-
-```text
-requests
-tqdm
-```
-
 ---
 
 ## Setup
@@ -49,7 +42,7 @@ cd VirusTotalBulkScanner
 ```
 
 2. Create an API key in your [VirusTotal account](https://www.virustotal.com/). Once created, you can either:
-   - Enter the API key manually when prompted by the script, or
+   - Enter the API key manually when prompted by the script, type yes for future use or
    - Save it in a `config.json` file for future use.
 
 The `config.json` file format is as follows:
