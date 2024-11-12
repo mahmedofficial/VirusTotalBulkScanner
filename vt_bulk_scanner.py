@@ -46,16 +46,23 @@ def vt_lookup(item, item_type, VT_API_KEY):
     url = f"{VT_API_URL}/{item_type}/{item}"
     headers = {"x-apikey": VT_API_KEY}
     
-    try:
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            return response.json()
-        elif response.status_code == 404:
-            return {"error": "Not found"}
-        else:
-            return {"error": f"Error {response.status_code}"}
-    except Exception as e:
-        return {"error": f"Request failed: {str(e)}"}
+    while True:
+        try:
+            response = requests.get(url, headers=headers)
+            
+            # Check if the request was successful
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 404:
+                return {"error": "Not found"}
+            elif response.status_code == 429:  # Rate limit exceeded
+                print("Rate limit reached. Waiting for 60 seconds before retrying...")
+                time.sleep(60)  # Wait before retrying
+            else:
+                return {"error": f"Error {response.status_code}"}
+        
+        except Exception as e:
+            return {"error": f"Request failed: {str(e)}"}
 
 # Function to determine the type of the item (file hash, domain, or IP)
 def determine_item_type(item):
@@ -82,6 +89,9 @@ def process_item(row, VT_API_KEY):
     
     result = vt_lookup(item, item_type, VT_API_KEY)
     
+    # Delay of 15 seconds after each API request
+    time.sleep(15)
+
     # Initialize a result dictionary with default values
     result_data = {
         "item": item,
@@ -129,61 +139,71 @@ def process_item(row, VT_API_KEY):
 def bulk_scan(input_file, output_file, VT_API_KEY):
     print("Scan is running, please wait...")
 
-    with open(input_file, "r") as infile, open(output_file, "w", newline="") as outfile:
-        reader = csv.reader(infile)
-        writer = csv.writer(outfile)
+    try:
+        with open(input_file, "r") as infile, open(output_file, "w", newline="") as outfile:
+            reader = csv.reader(infile)
+            writer = csv.writer(outfile)
 
-        headers = ["Item", "Type", "Harmless", "Malicious", "Suspicious", "Undetected", "Country", "AS Owner","VT LINK", "Last Analysis Date"]
-        writer.writerow(headers)
+            headers = ["Item", "Type", "Harmless", "Malicious", "Suspicious", "Undetected", "Country", "AS Owner","VT LINK", "Last Analysis Date"]
+            writer.writerow(headers)
 
-        # Read all items into memory and filter out empty rows
-        items = [row for row in reader if row]  # Only keep non-empty rows
+            # Read all items into memory and filter out empty rows
+            items = [row for row in reader if row]  # Only keep non-empty rows
 
-        # Create a progress bar using tqdm with total items to process
-        with tqdm(total=len(items), desc="Scanning items", unit="item") as pbar:
-            # Use ThreadPoolExecutor to parallelize the scan
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                futures = {executor.submit(process_item, row, VT_API_KEY): row for row in items}
-                
-                # Iterate over completed tasks
-                for future in concurrent.futures.as_completed(futures):
-                    result_data = future.result()
-                    item, item_type, result = result_data["item"], result_data["type"], result_data
+            # Create a progress bar using tqdm with total items to process
+            with tqdm(total=len(items), desc="Scanning items", unit="item") as pbar:
+                # Use ThreadPoolExecutor to parallelize the scan
+                with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                    futures = {executor.submit(process_item, row, VT_API_KEY): row for row in items}
                     
-                    # Write the result to the CSV
-                    writer.writerow([
-                        result_data["item"],
-                        result_data["type"], 
-                        result_data["harmless"],
-                        result_data["malicious"],
-                        result_data["suspicious"],
-                        result_data["undetected"],
-                        result_data["country"],
-                        result_data["as_owner"],
-                        result_data["vt_link"],
-                        result_data["last_analysis_date"],
-                    ])
+                    # Iterate over completed tasks
+                    for future in concurrent.futures.as_completed(futures):
+                        result_data = future.result()
+                        item, item_type, result = result_data["item"], result_data["type"], result_data
+                        try:
+                            # Write the result to the CSV
+                            writer.writerow([
+                                result_data["item"],
+                                result_data["type"], 
+                                result_data["harmless"],
+                                result_data["malicious"],
+                                result_data["suspicious"],
+                                result_data["undetected"],
+                                result_data["country"],
+                                result_data["as_owner"],
+                                result_data["vt_link"],
+                                result_data["last_analysis_date"],
+                            ])
+                            pbar.update(1)  # Update the progress bar as each item is processed
+                        except Exception as e:
+                            print(f"Error processing item: {e}")
+    except KeyboardInterrupt:
+        print("\nProcess interrupted by the user. Exiting gracefully...")
+        sys.exit(1)
 
-                    pbar.update(1)  # Update the progress bar as each item is processed
-
+    # Scan is successfully completed
     print(f"Scan completed. Results saved to {output_file}.")
 
 if __name__ == "__main__":
-    # Check if both input and output file paths are provided
-    if len(sys.argv) != 3:
-        print("Usage: python3 vt_bulk_scanner.py [input_file_path] [output_file_path]")
+    try:
+        # Check if both input and output file paths are provided
+        if len(sys.argv) != 3:
+            print("Usage: python3 vt_bulk_scanner.py [input_file_path] [output_file_path]")
+            sys.exit(1)
+
+        # Get file paths from command-line arguments
+        input_file = sys.argv[1]
+        output_file = sys.argv[2]
+
+        # Get API Key (either from the config or by prompting the user)
+        VT_API_KEY = get_api_key()
+
+        if not VT_API_KEY:
+            print("Error: API Key is required to continue.")
+            exit(1)
+
+        # Run the bulk scan
+        bulk_scan(input_file, output_file, VT_API_KEY)
+    except KeyboardInterrupt:
+        print("\nProcess interrupted by the user. Exiting gracefully...")
         sys.exit(1)
-
-    # Get file paths from command-line arguments
-    input_file = sys.argv[1]
-    output_file = sys.argv[2]
-
-    # Get API Key (either from the config or by prompting the user)
-    VT_API_KEY = get_api_key()
-
-    if not VT_API_KEY:
-        print("Error: API Key is required to continue.")
-        exit(1)
-
-    # Run the bulk scan
-    bulk_scan(input_file, output_file, VT_API_KEY)
