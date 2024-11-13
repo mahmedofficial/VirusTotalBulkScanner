@@ -5,7 +5,6 @@ import json
 import os
 import sys
 from tqdm import tqdm
-import concurrent.futures
 import re
 from datetime import datetime
 
@@ -23,187 +22,160 @@ def save_api_key(api_key):
     config = {"VT_API_KEY": api_key}
     with open("config.json", "w") as file:
         json.dump(config, file)
+    print("API Key saved successfully.")
 
 # Function to get the API key, either from the user or from the saved config
 def get_api_key():
     api_key = load_api_key()
+    
     if api_key:
         print("API Key loaded from config.")
+        
+        # Loop until the user provides a valid input ('y' or 'n')
+        while True:
+            update_option = input("Would you like to update the API key? (y/n): ").lower()
+            if update_option == 'y':
+                api_key = input("Enter your new VirusTotal API Key: ")
+                save_api_key(api_key)
+                print("API Key updated.")
+                break
+            elif update_option == 'n':
+                print("Keeping the existing API Key.")
+                break
+            else:
+                print("Invalid input. Please enter 'y' to update or 'n' to keep the existing API key.")
+                
     else:
         print("No API key found. Please enter your API key.")
         api_key = input("Enter your VirusTotal API Key: ")
-        save_option = input("Would you like to save this API key for future use? (y/n): ")
-        if save_option.lower() == 'y':
-            save_api_key(api_key)
-            print("API Key saved for future use.")
+        while True:
+            save_option = input("Would you like to save this API key for future use? (y/n): ").lower()
+            if save_option == 'y':
+                save_api_key(api_key)
+                break
+            elif save_option == 'n':
+                print("API Key not saved.")
+                break
+            else:
+                print("Invalid input. Please enter 'y' to save or 'n' to unsave API key.")
+    
     return api_key
 
-# Replace with your actual VirusTotal API URL
+# VirusTotal API details
 VT_API_URL = "https://www.virustotal.com/api/v3"
+MAX_RETRIES = 5
+RETRY_DELAY = 60
 
-# Function to check an item (IP, domain, or hash) against VirusTotal
+# Query to virus total to get response and error handling
 def vt_lookup(item, item_type, VT_API_KEY):
     url = f"{VT_API_URL}/{item_type}/{item}"
     headers = {"x-apikey": VT_API_KEY}
-    
-    while True:
-        try:
-            response = requests.get(url, headers=headers)
-            
-            # Check if the request was successful
-            if response.status_code == 200:
-                return response.json()
-            elif response.status_code == 404:
-                return {"error": "Not found"}
-            elif response.status_code == 429:  # Rate limit exceeded
-                print("Rate limit reached. Waiting for 60 seconds before retrying...")
-                time.sleep(60)  # Wait before retrying
-            else:
-                return {"error": f"Error {response.status_code}"}
-        
-        except Exception as e:
-            return {"error": f"Request failed: {str(e)}"}
 
-# Function to determine the type of the item (file hash, domain, or IP)
+    for attempt in range(1, MAX_RETRIES + 1):
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            return response.json()
+        elif response.status_code == 404:
+            return {"error": "Not found"}
+        elif response.status_code == 429:
+            if attempt == MAX_RETRIES:
+                return {"error": "Max retries reached due to rate limit. Exiting..."}
+            print(f"Rate limit reached. Retrying in {RETRY_DELAY} seconds... (Attempt {attempt}/{MAX_RETRIES})")
+            time.sleep(RETRY_DELAY)
+        else:
+            return {"error": f"Error {response.status_code}"}
+    
+    return {"error": "Request failed"}
+
+# Function to determine the item type
 def determine_item_type(item):
-    # Regex pattern for an IPv4 address
     ipv4_pattern = r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
-    
-    # Regex pattern for an IPv6 address
     ipv6_pattern = r"^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$"
-    
-    # Check if the item matches IPv4 or IPv6 pattern
     if re.match(ipv4_pattern, item) or re.match(ipv6_pattern, item):
         return "ip_addresses"
-    elif len(item) in {32, 40, 64, 96, 128}:  # Length for hash types (MD5, SHA1, SHA256, etc.)
+    elif len(item) in {32, 40, 64, 96, 128}:
         return "files"
     elif "." in item:
         return "domains"
-    else:
-        return "unknown"
+    return "unknown"
 
-# Function to handle scanning of each item (used for parallel processing)
+# Function to process each item
 def process_item(row, VT_API_KEY):
     item = row[0]
-    item_type = determine_item_type(item)  # Use the new function to detect the item type
-    
+    item_type = determine_item_type(item)
     result = vt_lookup(item, item_type, VT_API_KEY)
+    if "error" in result:
+        return {"error": result["error"]}
     
-    # Delay of 15 seconds after each API request
-    time.sleep(15)
-
-    # Initialize a result dictionary with default values
     result_data = {
         "item": item,
         "type": item_type,
-        "harmless": 0,
-        "malicious": 0,
-        "suspicious": 0,
-        "undetected": 0,
-        "country": "",
-        "as_owner": "",
-        "vt_link": "",
-        "last_analysis_date": ""
+        "harmless": result.get("data", {}).get("attributes", {}).get("last_analysis_stats", {}).get("harmless", 0),
+        "malicious": result.get("data", {}).get("attributes", {}).get("last_analysis_stats", {}).get("malicious", 0),
+        "suspicious": result.get("data", {}).get("attributes", {}).get("last_analysis_stats", {}).get("suspicious", 0),
+        "undetected": result.get("data", {}).get("attributes", {}).get("last_analysis_stats", {}).get("undetected", 0),
+        "country": result.get("data", {}).get("attributes", {}).get("country", ""),
+        "as_owner": result.get("data", {}).get("attributes", {}).get("as_owner", ""),
+        "vt_link": f"https://virustotal.com/gui/{item_type}/{item}/detection",
+        "last_analysis_date": datetime.fromtimestamp(
+            result.get("data", {}).get("attributes", {}).get("last_analysis_date", 0)
+        ).strftime("%Y-%m-%d %H:%M:%S")
     }
-    
-    if result.get("error"):
-        return result_data  # Return with only the error
-    
-    # Extract data type from 'data' dictionary
-    data_type = result.get("data", {}).get("type", "")
-
-    # Extract the 'attributes' dictionary from 'data'
-    attributes = result.get("data", {}).get("attributes", {})
-
-    # Extract last_analysis_date from 'attributes' dictionary
-    last_analysis_timestamp = attributes.get("last_analysis_date", "")
-    
-    # Common fields for all types
-    result_data["harmless"] = attributes.get("last_analysis_stats", {}).get("harmless", 0)
-    result_data["malicious"] = attributes.get("last_analysis_stats", {}).get("malicious", 0)
-    result_data["suspicious"] = attributes.get("last_analysis_stats", {}).get("suspicious", 0)
-    result_data["undetected"] = attributes.get("last_analysis_stats", {}).get("undetected", 0)
-    result_data["vt_link"] = f"https://virustotal.com/gui/{data_type}/{item}/detection"
-    result_data["last_analysis_date"] = datetime.fromtimestamp(last_analysis_timestamp)
-
-    
-    # Specific fields based on the item type
-    if item_type == "ip_addresses":
-        result_data["as_owner"] = attributes.get("as_owner", "")
-        result_data["country"] = attributes.get("country", "")
-    
     return result_data
-    
 
-# Function to handle the bulk scanning process
+# Bulk scan function
 def bulk_scan(input_file, output_file, VT_API_KEY):
     print("Scan is running, please wait...")
+    with open(input_file, "r") as infile, open(output_file, "w", newline="") as outfile:
+        reader = csv.reader(infile)
+        writer = csv.writer(outfile)
 
-    try:
-        with open(input_file, "r") as infile, open(output_file, "w", newline="") as outfile:
-            reader = csv.reader(infile)
-            writer = csv.writer(outfile)
+        headers = ["Item", "Type", "Harmless", "Malicious", "Suspicious", "Undetected", "Country", "AS Owner", "VT LINK", "Last Analysis Date"]
+        writer.writerow(headers)
 
-            headers = ["Item", "Type", "Harmless", "Malicious", "Suspicious", "Undetected", "Country", "AS Owner","VT LINK", "Last Analysis Date"]
-            writer.writerow(headers)
+        total_items = sum(1 for row in infile)
+        infile.seek(0)
+        next(reader, None)
 
-            # Read all items into memory and filter out empty rows
-            items = [row for row in reader if row]  # Only keep non-empty rows
+        with tqdm(total=total_items, desc="Scanning items", unit="item") as pbar:
+            for row in reader:
+                if not row:
+                    continue
 
-            # Create a progress bar using tqdm with total items to process
-            with tqdm(total=len(items), desc="Scanning items", unit="item") as pbar:
-                # Use ThreadPoolExecutor to parallelize the scan
-                with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-                    futures = {executor.submit(process_item, row, VT_API_KEY): row for row in items}
-                    
-                    # Iterate over completed tasks
-                    for future in concurrent.futures.as_completed(futures):
-                        result_data = future.result()
-                        item, item_type, result = result_data["item"], result_data["type"], result_data
-                        try:
-                            # Write the result to the CSV
-                            writer.writerow([
-                                result_data["item"],
-                                result_data["type"], 
-                                result_data["harmless"],
-                                result_data["malicious"],
-                                result_data["suspicious"],
-                                result_data["undetected"],
-                                result_data["country"],
-                                result_data["as_owner"],
-                                result_data["vt_link"],
-                                result_data["last_analysis_date"],
-                            ])
-                            pbar.update(1)  # Update the progress bar as each item is processed
-                        except Exception as e:
-                            print(f"Error processing item: {e}")
-    except KeyboardInterrupt:
-        print("\nProcess interrupted by the user. Exiting gracefully...")
-        sys.exit(1)
+                # Process the item and retrieve results
+                result_data = process_item(row, VT_API_KEY)
 
-    # Scan is successfully completed
+                if "error" in result_data:
+                    print(f"{result_data["error"]}\nResults saved to {output_file}.")
+                    pbar.update(0)  # Update progress bar without changing it
+                    pbar.close()  # Close the progress bar to stop further updates
+                    sys.exit(1)
+
+                writer.writerow([
+                    result_data["item"], result_data["type"], result_data["harmless"],
+                    result_data["malicious"], result_data["suspicious"], result_data["undetected"],
+                    result_data["country"], result_data["as_owner"], result_data["vt_link"], result_data["last_analysis_date"]
+                ])
+                pbar.update(1)
     print(f"Scan completed. Results saved to {output_file}.")
 
+# Main program entry point
 if __name__ == "__main__":
     try:
-        # Check if both input and output file paths are provided
         if len(sys.argv) != 3:
             print("Usage: python3 vt_bulk_scanner.py [input_file_path] [output_file_path]")
             sys.exit(1)
 
-        # Get file paths from command-line arguments
         input_file = sys.argv[1]
         output_file = sys.argv[2]
 
-        # Get API Key (either from the config or by prompting the user)
+        print("Loading API key...")
         VT_API_KEY = get_api_key()
 
-        if not VT_API_KEY:
-            print("Error: API Key is required to continue.")
-            exit(1)
-
-        # Run the bulk scan
+        # Start bulk scanning
         bulk_scan(input_file, output_file, VT_API_KEY)
+
     except KeyboardInterrupt:
-        print("\nProcess interrupted by the user. Exiting gracefully...")
+        print(f"\nProcess interrupted by the user. Exiting gracefully...\nResults saved to {output_file}.")
         sys.exit(1)
