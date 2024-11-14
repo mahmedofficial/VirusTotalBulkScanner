@@ -170,6 +170,13 @@ if __name__ == "__main__":
         input_file = sys.argv[1]
         output_file = sys.argv[2]
 
+        if not os.path.exists(input_file):
+            print(f"Error: The input file '{input_file}' does not exist.")
+            sys.exit(1) 
+        elif not os.path.exists(output_file):
+            print(f"Error: The input file '{output_file}' does not exist.")
+            sys.exit(1) 
+            
         print("Loading API key...")
         VT_API_KEY = get_api_key()
 
