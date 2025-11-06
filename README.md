@@ -89,8 +89,8 @@ IP Address,Malicious Count,AS Owner,ASN,Network,Country,Region,City,Latitude,Lon
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/vt-bulk-scanner.git
-cd vt-bulk-scanner
+git clone https://github.com/mahmedofficial/VT-Bulk-Scanner.git
+cd VT-Bulk-Scanner
 ```
 
 ### 2. Install dependencies
