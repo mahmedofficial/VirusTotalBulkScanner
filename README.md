@@ -1,165 +1,132 @@
-# VirusTotal Bulk Scanner
+# 🧠 VT Bulk Scanner
 
-A Python script to scan IP addresses using [VirusTotal API](https://www.virustotal.com/) with optional ASN filtering.  
-This script reads IPs from a CSV file, removes duplicates, and outputs scan results to a file.  
+A Python-based **bulk VirusTotal IP scanner** with support for **multiple API keys**, **ASN filtering**, and **optional detailed location output**.  
+Perfect for cybersecurity analysts, SOC teams, or researchers who need to quickly analyze large IP lists against VirusTotal.
 
 ---
 
 ## Features
 
-- Scan all unique IP addresses from a CSV file.  
-- Optional filtering based on ASN list.  
-- Progress tracking with a visual progress bar.  
-- Summary report after scanning: total scanned, malicious, and safe IPs.  
-- Outputs results to `result.txt` with VirusTotal link for each IP.  
+**Bulk Scanning**  
+- Scan hundreds of IPs from a CSV list.  
+- Automatically removes duplicate entries.  
+
+**Multi-API Key Support**  
+- Load multiple VirusTotal API keys from `api_keys.txt`.  
+- Automatically rotates keys on rate-limit (429) or unauthorized (401) errors.  
+
+**Filtering**  
+- Option to scan **all IPs** or only IPs **not in a known ASN list**.  
+
+**Output Control**  
+- Save only malicious IPs or **all IPs** (malicious + clean).  
+- Optionally include detailed location and network fields: ASN, AS Owner, Country, Region, City, Latitude, Longitude.  
+
+**Progress Feedback**  
+- Interactive prompts and progress bars.  
+- Displays total malicious IPs detected at the end.
 
 ---
 
-## Requirements
+## Input Files
 
-- Python 3.8+  
-- Install required Python packages using the provided `requirements.txt` file:
+| File | Description | Required |
+|------|-------------|----------|
+| `ips.csv` | List of IP addresses to scan. Must contain a header `ip_address`. | ✅ |
+| `asn_list.csv` | List of trusted ASN numbers for filtering (optional). | ⚙️ Optional |
+| `api_keys.txt` | One VirusTotal API key per line. Used if `VT_API_KEY` env var not set. | ⚙️ Optional |
 
-```bash
-pip install -r requirements.txt
-````
-
----
-
-## Setting up a Python Virtual Environment
-
-It is recommended to use a virtual environment to keep project dependencies isolated.
-
-### 1. Create a virtual environment
-
-```bash
-# For Windows
-python -m venv venv
-
-# For Linux / Mac
-python3 -m venv venv
-```
-
-This will create a folder named `venv` containing the isolated environment.
-
----
-
-### 2. Activate the virtual environment
-
-```bash
-# Windows
-venv\Scripts\activate
-
-# Linux / Mac
-source venv/bin/activate
-```
-
-After activation, your terminal prompt should show `(venv)`.
-
----
-
-### 3. Install required packages
-
-Once the virtual environment is activated:
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-### 4. Deactivate the environment (after use)
-
-```bash
-deactivate
-```
-
-This returns your terminal to the global Python environment.
-
----
-
-## CSV File Templates
-
-### ips.csv
-
+**Example: `ips.csv`**
 ```csv
 ip_address
 8.8.8.8
 1.1.1.1
-104.16.132.229
-185.199.108.153
-```
+192.168.10.20
+````
 
-### asn\_list.csv (optional, only if using ASN filtering)
+**Example: `asn_list.csv`**
 
 ```csv
 asn
-15169
-13335
+AS15169
+AS13335
 ```
 
----
-
-## Usage
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/mahmedofficial/VirusTotalBulkScanner.git
-cd VirusTotalBulkScanner
-```
-
-2. (Optional) Create and activate a virtual environment (see instructions above).
-
-3. Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-4. Run the script:
-
-```bash
-python vt-bulk-scanner.py
-```
-
-5. Select scanning mode when prompted:
+**Example: `api_keys.txt`**
 
 ```
-1. Scan ALL unique IPs (no ASN filtering)
-2. Scan only IPs NOT in ASN list (filter by ASN)
-```
-
-6. Enter your VirusTotal API key.
-
-7. After the scan, check `result.txt` for results:
-
-```bash
-type result.txt   # Windows
-cat result.txt    # Linux/Mac
+abc123yourfirstapikey
+xyz789yoursecondapikey
 ```
 
 ---
 
 ## Output
 
-The `result.txt` file contains scanned IPs in the following format:
+| File         | Description                                                                 |
+| ------------ | --------------------------------------------------------------------------- |
+| `result.csv` | Generated automatically. Contains all results based on your chosen options. |
 
-```
-IP;MaliciousCount;AS_Owner;VirusTotal_Link
+**Example (short output mode)**
+
+```csv
+IP Address,Malicious Count,AS Owner,VirusTotal Link
+8.8.8.8,0,Google LLC,https://virustotal.com/gui/ip-address/8.8.8.8/detection
+45.13.104.90,5,Host Europe GmbH,https://virustotal.com/gui/ip-address/45.13.104.90/detection
 ```
 
-Example:
+**Example (detailed output mode)**
 
-```
-8.8.8.8;0;Google LLC;https://www.virustotal.com/gui/ip-address/8.8.8.8/detection
-1.1.1.1;0;Cloudflare, Inc.;https://www.virustotal.com/gui/ip-address/1.1.1.1/detection
+```csv
+IP Address,Malicious Count,AS Owner,ASN,Network,Country,Region,City,Latitude,Longitude,VirusTotal Link
+45.13.104.90,5,Host Europe GmbH,AS12345,45.13.104.0/22,DE,NRW,Cologne,50.9375,6.9603,https://virustotal.com/gui/ip-address/45.13.104.90/detection
 ```
 
 ---
 
-## Notes
+## Installation
 
-* **Do not commit your VirusTotal API key** to GitHub.
-* Large IP lists may hit API rate limits — the script adds a small delay between requests.
-* `result.txt` is overwritten on each run.
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/yourusername/vt-bulk-scanner.git
+cd vt-bulk-scanner
+```
+
+### 2. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+**Dependencies**
+
+```
+requests
+tqdm
+ipwhois
+```
+
+---
+
+## Usage
+
+### 1. Run the scanner
+
+```bash
+python vt-bulk-scanner-v2.0.py
+```
+
+### 2. Follow the interactive prompts
+
+* Choose scanning mode (all IPs or ASN filtered).
+* Choose output type (malicious only or all).
+* Optionally include detailed network/location info.
+
+## License
+
+This project is licensed under the **MIT License**.
+You are free to use, modify, and distribute it with attribution.
+---
+
+**⭐ If this tool helps you, please star the repo!**
