@@ -179,7 +179,7 @@ def filter_and_scan_ips(api_manager, check_asn=True):
             if DETAILED_OUTPUT:
                 writer.writerow([
                     "IP Address", "Malicious Count", "AS Owner", "ASN", "Network",
-                    "Country", "Region", "City", "Latitude", "Longitude", "VirusTotal Link"
+                    "Country", "VirusTotal Link"
                 ])
             else:
                 writer.writerow(["IP Address", "Malicious Count", "AS Owner", "VirusTotal Link"])
@@ -211,10 +211,6 @@ def filter_and_scan_ips(api_manager, check_asn=True):
                     asn_val = data.get('asn') or ''
                     network = data.get('network', '')
                     country = data.get('country', '')
-                    region = data.get('region', '') if isinstance(data.get('region'), str) else ''
-                    city = data.get('city', '') if isinstance(data.get('city'), str) else ''
-                    latitude = data.get('latitude') or ''
-                    longitude = data.get('longitude') or ''
                 except Exception as e:
                     print(f"Error parsing VT response for {ip}: {e}")
                     continue
@@ -230,7 +226,7 @@ def filter_and_scan_ips(api_manager, check_asn=True):
                             if DETAILED_OUTPUT:
                                 writer.writerow([
                                     ip, malicious, as_owner, asn_val, network,
-                                    country, region, city, latitude, longitude, vt_link
+                                    country, vt_link
                                 ])
                             else:
                                 writer.writerow([ip, malicious, as_owner, vt_link])
