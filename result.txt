@@ -1,5 +1,0 @@
-104.28.211.188;3;CLOUDFLARENET;https://virustotal.com/gui/ip-address/104.28.211.188/detection
-103.77.107.243;1;PT Berkah Solusi Teknologi Informasi;https://virustotal.com/gui/ip-address/103.77.107.243/detection
-37.49.228.211;0;ESTOXY OU;https://virustotal.com/gui/ip-address/37.49.228.211/detection
-34.175.204.2;2;GOOGLE-CLOUD-PLATFORM;https://virustotal.com/gui/ip-address/34.175.204.2/detection
-195.177.94.51;4;Stellar Group SAS;https://virustotal.com/gui/ip-address/195.177.94.51/detection
