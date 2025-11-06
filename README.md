@@ -1,4 +1,4 @@
-# 🧠 VT Bulk Scanner
+# VT Bulk Scanner
 
 A Python-based **bulk VirusTotal IP scanner** with support for **multiple API keys**, **ASN filtering**, and **optional detailed location output**.  
 Perfect for cybersecurity analysts, SOC teams, or researchers who need to quickly analyze large IP lists against VirusTotal.
