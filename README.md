@@ -93,7 +93,20 @@ git clone https://github.com/mahmedofficial/VT-Bulk-Scanner.git
 cd VT-Bulk-Scanner
 ```
 
-### 2. Install dependencies
+### 2. Create a virtual environment
+
+```bash
+python3 -m venv vt_env
+```
+
+### 3. Activate the virtual environment
+
+```bash
+# Linux / macOS
+source vt_env/bin/activate
+```
+
+### 4. Install dependencies
 
 ```bash
 pip install -r requirements.txt
