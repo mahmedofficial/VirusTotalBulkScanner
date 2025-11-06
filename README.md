@@ -98,15 +98,6 @@ cd vt-bulk-scanner
 ```bash
 pip install -r requirements.txt
 ```
-
-**Dependencies**
-
-```
-requests
-tqdm
-ipwhois
-```
-
 ---
 
 ## Usage
